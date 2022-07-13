@@ -165,7 +165,7 @@ class KuzushijiOcr:
 
     @staticmethod
     def loadModel():
-        return torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt', source="local")
+        return torch.hub.load('ultralytics/yolov5', 'custom', path='model/best.pt', source="local")
 
     @staticmethod
     def execByUrl(url, output_dir):
