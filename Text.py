@@ -5,8 +5,8 @@ import requests
 import os
 import json
 from bs4 import BeautifulSoup
-
 # debug = False
+from Common import Common
 
 # 行の開始xと終了xを求める
 def getLines(width, hist, hist_value_mean):
@@ -156,7 +156,10 @@ def updateMembers(members, indexes, ids):
 
 class Text:
     @staticmethod
-    def exec(task_id, output_dir, curation):
+    def exec(output_dir, curation_path, tmp_dir): # task_id, 
+        with open(curation_path, 'r') as f:
+            curation = json.load(f)
+
         members = curation["selections"][0]["members"]
         
         canvases = {}
@@ -179,21 +182,13 @@ class Text:
             # try:
             canvases[canvas]["boxes"].append({
                 "aid": member["metadata"][0]["value"][0]["@id"],
-                # "index" : i,
                 "x" : int(xywh[0]),
                 "y" : int(xywh[1]),
                 "width" : int(xywh[2]),
-                "height" : int(xywh[3]),
-                # "text" : member["metadata"][0]["value"][0]["resource"]["marker"]["text"]
+                "height" : int(xywh[3])
             })
 
             indexes[member["metadata"][0]["value"][0]["@id"]] = i
-
-            '''
-            except Exception as e:
-                print(e)
-                pass
-            '''
 
         # print("Setting reading orders ...")
         for canvas in tqdm(canvases):
@@ -253,18 +248,15 @@ class Text:
 
             # idsに基づき、membersを更新する
             updateMembers(members, indexes, ids_best)
-        
-        import json
-        import os
 
-        opath = "{}/{}/text.json".format(output_dir, task_id)
+        opath = "{}/text.json".format(output_dir)
         os.makedirs(os.path.dirname(opath), exist_ok=True)
 
         with open(opath, 'w') as outfile:
             json.dump(curation, outfile, ensure_ascii=False,
             indent=4, sort_keys=True, separators=(',', ': '))
 
-        items = Text.convert2text(curation, task_id)
+        items = Text.convert2text(curation, tmp_dir)
 
         # 全体テキスト
         txt = ""
@@ -275,13 +267,17 @@ class Text:
         soup = BeautifulSoup(xml_all,'xml')
         OCRDATASET = soup.find("OCRDATASET")
 
-        mpath = "{}/{}/manifest.json".format(output_dir, task_id)
+        mpath = "{}/manifest.json".format(output_dir)
         with open(mpath, 'r') as f:
             manifest3_org = json.load(f)
 
+        canvas_map = {}
+        for canvas in manifest3_org["items"]:
+            canvas_map[canvas["id"]] = canvas
+
         for i in range(len(items)):
             index = str(i + 1).zfill(4)
-            opath = "{}/{}/txt/{}.txt".format(output_dir, task_id, index)
+            opath = "{}/txt/{}.txt".format(output_dir, index)
 
             os.makedirs(os.path.dirname(opath), exist_ok=True)
             item = items[i]
@@ -290,13 +286,15 @@ class Text:
                 outfile.write("\n".join(data))
             
             # 全体テキスト
-            txt += "\n".join(data)
+            if len(data) > 0:
+                txt += "\n".join(data) + "\n"
 
             page = soup.new_tag("PAGE")
             page["IMAGENAME"] = "{}.jpg".format(index)
 
             annos = []
-            canvas = manifest3_org["items"][i]
+
+            canvas_id = item["id"]
 
             # 行ごと
             for j in range(len(data)):
@@ -332,7 +330,7 @@ class Text:
                 line["HEIGHT"] = y_max - y_min
 
                 
-                canvas_id = canvas["id"]
+                # canvas_id = canvas["id"]
 
                 anno = {
                     "id": "{}/annos/{}".format(canvas_id, j+1),
@@ -348,25 +346,26 @@ class Text:
 
             OCRDATASET.append(page)
 
-            
-            canvas["annotations"][0]["items"] = annos
+            if canvas_id in canvas_map:
+                canvas = canvas_map[canvas_id]
+                canvas["annotations"][0]["items"] = annos
         
 
         # TXT
-        opath = "{}/{}/all.txt".format(output_dir, task_id)
+        opath = "{}/all.txt".format(output_dir)
         with open(opath, 'w') as outfile:
             outfile.write(txt)
 
         # XML
         html = soup.prettify("utf-8")
 
-        opath = "{}/{}/all.xml".format(output_dir, task_id)
+        opath = "{}/all.xml".format(output_dir)
         # os.makedirs(os.path.dirname(opath), exist_ok=True)
         with open(opath, "wb") as file:
             file.write(html)
 
         # manifest
-        opath = "{}/{}/line.json".format(output_dir, task_id)
+        opath = "{}/line.json".format(output_dir)
         os.makedirs(os.path.dirname(opath), exist_ok=True)
 
         with open(opath, 'w') as outfile:
@@ -375,19 +374,10 @@ class Text:
 
     
     @staticmethod
-    def convert2text(curation, task_id):
-        manifest = curation["selections"][0]["within"]["@id"]
-
-        opath = "tmp/{}/manifest.json".format(task_id)
-
-        if not os.path.exists(opath):
-            df = requests.get(manifest).json()
-            with open(opath, 'w') as outfile:
-                json.dump(df, outfile, ensure_ascii=False,
-                indent=4, sort_keys=True, separators=(',', ': '))
-        
-        with open(opath, 'r') as f:
-            manifest = json.load(f)
+    def convert2text(curation, tmp_dir):
+        manifest_url = curation["selections"][0]["within"]["@id"]
+        opath = "{}/manifest.json".format(tmp_dir)
+        manifest = Common.getJson(manifest_url, opath)
 
         canvases = manifest["sequences"][0]["canvases"]
 
@@ -483,16 +473,9 @@ class Text:
 
             handle(start_node_id, 0)
 
-            # canvas_text_map[canvas_id] = data
             item["data"] = data
             item["xywhs"] = xywhs
             canvas_text_map.append(item)
-
-            # print(xywhs)
-
-            # break
-
-        # pprint.pprint(canvas_text_map)
 
         return canvas_text_map
         

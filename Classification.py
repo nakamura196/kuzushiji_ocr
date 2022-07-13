@@ -10,6 +10,7 @@ import codecs
 import shutil
 from tqdm import tqdm
 from Converter import Converter
+from Common import Common
 
 imsize = (64, 64)
 
@@ -64,29 +65,71 @@ def predict(img):
 
 class Classification:
     @staticmethod
-    def exec(url, output_dir, m_data):
+    def exec(output_dir, manifest_path, tmp_dir, start=0, end=-1):
 
-        hs = hashlib.md5(url.encode()).hexdigest()
-
-        o_dir = "tmp/{}/chars".format(hs)
+        o_dir = "{}/chars".format(tmp_dir)
         if os.path.exists(o_dir):
             shutil.rmtree(o_dir)
 
-        index = 0
+        anno_index = 0
         
-        items = m_data["items"]
+        
 
         prediction_result = {}
 
-        for i in tqdm(range(len(items))):
-            item = items[i]
+        # start = 0 if start < 1 else start - 1
+        # end = len(canvases) if end == -1 else end - 1
+
+        # 注意。アノテーション付きのマニフェスト。
+        with open(manifest_path, 'r') as f:
+            m_data = json.load(f)
+
+        items = m_data["items"]
+
+        itemMap = {}
+        for item in items:
+            itemMap[item["id"]] = item
+
+        # 注意2。オリジナルのマニフェスト。
+        url = m_data["id"]
+        original_manifest_path = "{}/manifest.json".format(tmp_dir)
+        
+        manifest = Common.getJson(url, original_manifest_path)
+
+        canvases = manifest["sequences"][0]["canvases"]
+
+        
+
+        for i in tqdm(range(start, end + 1)):
+            if start <= i and (end == -1 or i <= end):
+                pass
+            else:
+                continue
+
+            # index = str(i + 1).zfill(4)
+            # print(i)
+
+            canvas = canvases[i]
+            canvas_id = canvas["@id"]
+
+            if canvas_id not in itemMap:
+                continue
+
+            item = itemMap[canvas_id]
+
+            # for i in tqdm(range(len(items))):
+            # item = items[i]
+            
             page = str(i + 1).zfill(4)
 
-            path = "tmp/{}/img/{}.jpg".format(hs, page)
+            path = "{}/img/{}.jpg".format(tmp_dir, page)
             if not os.path.exists(path):
+                '''
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 url_img = item["items"][0]["items"][0]["body"]["id"]
                 request.urlretrieve(url_img, path)
+                '''
+                continue
             
             base_img = Image.open(path)
 
@@ -97,7 +140,7 @@ class Classification:
             anno_list = item["annotations"][0]["items"]
             
             for a in anno_list:
-                index += 1
+                anno_index += 1
                 
                 member_id = a["target"]
                 spl = member_id.split("#xywh=")
@@ -110,8 +153,8 @@ class Classification:
                 prediction_result[member_id] = p
 
                 if debug:
-                    basename = "{}-{}-{}-{}.jpg".format(str(page).zfill(4), p["marker"] + "_" + str(index).zfill(5), str(w-x).zfill(5), str(y).zfill(5))
-                    t_path = "tmp/{}/chars/{}".format(hs, basename)
+                    basename = "{}-{}-{}-{}.jpg".format(str(page).zfill(4), p["marker"] + "_" + str(anno_index).zfill(5), str(w-x).zfill(5), str(y).zfill(5))
+                    t_path = "{}/chars/{}".format(tmp_dir, basename)
                     os.makedirs(os.path.dirname(t_path), exist_ok=True)
                     img_crop.save(t_path)
 
@@ -138,7 +181,7 @@ class Classification:
                     "text" : label["marker"]
                 }
 
-        opath = "{}/{}/character.json".format(output_dir, hs)
+        opath = "{}/character.json".format(output_dir)
         os.makedirs(os.path.dirname(opath), exist_ok=True)
 
         with open(opath, 'w') as outfile:
