@@ -1,0 +1,8 @@
+pandas
+opencv-python
+pyyaml
+torch
+torchvision
+keras
+tensorflow
+matplotlib

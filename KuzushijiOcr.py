@@ -2,10 +2,11 @@ import os
 from urllib import request
 import hashlib
 from PIL import Image
-import pprint
 import json
 import requests
 from tqdm import tqdm
+import torch
+from Converter import Converter
 
 class TaskImage:
     yolo_defined_image_size = 1024
@@ -16,7 +17,7 @@ class TaskImage:
         self.canvas_id = canvas_id
         self.path = path
 
-    def detect(self, model_yolo):
+    def detect(self, model_yolo, thres=0.0):
         self.img = Image.open(self.path)
         self.getResizedImg()
 
@@ -52,6 +53,9 @@ class TaskImage:
             xywh = "{},{},{},{}".format(x, y, w, h)
             # print(xywh)
             score = result["confidence"]
+
+            if score < thres:
+                continue
 
             items.append({
                 "id": "{}/annos/{}".format(canvas, index),
@@ -144,27 +148,15 @@ class KuzushijiOcr:
         with open(opath, 'w') as outfile:
             json.dump(m_data, outfile)
 
-    def getResizedImg(self, path):
-        img = Image.open(path)
-        w, h = img.size
-        long_line = max(w, h)
-        yolo_input_image_size = min(yolo_defined_image_size, long_line)
+        return m_data
 
-        ratio = 1
-
-        resized_img = img
-
-        if long_line > yolo_input_image_size:
-            ratio = yolo_input_image_size / long_line
-            resized_img = img.resize((int(w * ratio), int(h * ratio)))
-
-        return resized_img, yolo_input_image_size, ratio, w, h
+    @staticmethod
+    def loadModel():
+        return torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt', source="local")
 
     @staticmethod
     def execByUrl(url, output_dir):
-
-        import torch
-        model_yolo = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt') # .autoshape()
+        model_yolo = KuzushijiOcr.loadModel()
 
         hs = hashlib.md5(url.encode()).hexdigest()
         path = "tmp/{}.jpg".format(hs)
@@ -182,10 +174,9 @@ class KuzushijiOcr:
         KuzushijiOcr.createManifest(manifest_uri, items, label, output_dir, hs)
 
     @staticmethod
-    def execByManifest(url, output_dir):
-
-        import torch
-        model_yolo = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt') # .autoshape()
+    def execByManifest(url, output_dir, thres=0.0):
+        
+        model_yolo = KuzushijiOcr.loadModel()
 
         hs = hashlib.md5(url.encode()).hexdigest()
 
@@ -202,17 +193,50 @@ class KuzushijiOcr:
 
             url_img = canvas["images"][0]["resource"]["service"]["@id"] + "/full/full/0/default.jpg"
 
-            path = "tmp/{}/{}.jpg".format(hs, index)
+            path = "tmp/{}/img/{}.jpg".format(hs, index)
             if not os.path.exists(path):
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 request.urlretrieve(url_img, path)
 
             task = TaskImage(url_img, path, int(index), canvas_id)
-            item = task.detect(model_yolo)
+            item = task.detect(model_yolo, thres=thres)
             items.append(item)
 
         label = manifest["label"]
         manifest_uri = manifest["@id"]
 
-        KuzushijiOcr.createManifest(manifest_uri, items, label, output_dir, hs)
+        m_data = KuzushijiOcr.createManifest(manifest_uri, items, label, output_dir, hs)
+        
+        # キュレーションへの変換
+        curation = Converter.convertManifest2Curation(m_data)
+
+        opath = "{}/{}/detection.json".format(output_dir, hs)
+        os.makedirs(os.path.dirname(opath), exist_ok=True)
+
+        with open(opath, 'w') as outfile:
+            json.dump(curation, outfile)
+
+    @staticmethod
+    def test(url, output_dir, thres=0.0):
+
+        hs = hashlib.md5(url.encode()).hexdigest()
+
+        path = "/Users/nakamura/git/genji/kuzushiji_ocr/output/5361f893208b0c7f853ea1d0552a9e1a/manifest.json"
+        with open(path) as f:
+            m_data = json.load(f)
+
+        # キュレーションへの変換
+        curation = Converter.convertManifest2Curation(m_data)
+
+        opath = "{}/{}/detection.json".format(output_dir, hs)
+        os.makedirs(os.path.dirname(opath), exist_ok=True)
+
+        with open(opath, 'w') as outfile:
+            json.dump(curation, outfile)
+
+        import pprint
+        pprint.pprint(curation)
+
+
+
 

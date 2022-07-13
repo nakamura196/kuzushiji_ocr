@@ -3,4 +3,5 @@ __pycache__
 best.pt
 tmp
 output
-Classification.py
+model
+venv
