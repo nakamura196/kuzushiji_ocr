@@ -199,19 +199,19 @@ class KuzushijiOcr:
 
         canvases = manifest["sequences"][0]["canvases"]
 
+        if end == -1:
+          end = len(canvases)
+
         items = []
 
         for i in tqdm(range(start, end + 1)):
 
-            # for i in tqdm(range(len(canvases))):
-
-            if start <= i and (end == -1 or i <= end):
+            if start <= i and i <= end and i < len(canvases):
                 pass
             else:
                 continue
 
             index = str(i + 1).zfill(4)
-            # print(i)
 
             canvas = canvases[i]
             canvas_id = canvas["@id"]

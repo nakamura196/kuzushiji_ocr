@@ -1,6 +1,9 @@
 from KuzushijiOcr import KuzushijiOcr
 from Classification import Classification
 from Text import Text
+import os
+import datetime
+import pytz
 
 class OcrTask:
     def __init__(self, url, output_dir, start, end, sleep_time, task_id, thres=0.0):
@@ -11,7 +14,13 @@ class OcrTask:
         self.sleep_time = sleep_time
         self.task_id = task_id
         self.thres = thres
-        self.main_dir = "{}/{}".format(output_dir, task_id)
+        main_dir = "{}/{}".format(output_dir, task_id)
+        if os.path.exists(main_dir):
+          run_id = datetime.datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y%m%d%H%M%S')
+          task_id = "{}_{}".format(task_id, run_id)
+          print("### タスクIDが重複するため、{}に変更します。 ###".format(task_id))
+          self.task_id = task_id
+        self.main_dir = "{}/{}".format(output_dir, task_id) # main_dir 
         self.manifest_path = "{}/manifest.json".format(self.main_dir)
         self.tmp_dir = "tmp/{}".format(task_id)
 

@@ -75,7 +75,7 @@ class Classification:
         
         
 
-        prediction_result = {}
+        
 
         # start = 0 if start < 1 else start - 1
         # end = len(canvases) if end == -1 else end - 1
@@ -98,10 +98,13 @@ class Classification:
 
         canvases = manifest["sequences"][0]["canvases"]
 
-        
+        if end == -1:
+          end = len(canvases)
 
-        for i in tqdm(range(start, end + 1)):
-            if start <= i and (end == -1 or i <= end):
+        tasks = []
+
+        for i in range(start, end + 1):
+            if start <= i and i <= end and i < len(canvases):
                 pass
             else:
                 continue
@@ -149,6 +152,7 @@ class Classification:
 
                 img_np, img_crop, x, y = load_image(base_img, xywh, r)
 
+                '''
                 p = predict(img_np)
                 prediction_result[member_id] = p
 
@@ -157,6 +161,18 @@ class Classification:
                     t_path = "{}/chars/{}".format(tmp_dir, basename)
                     os.makedirs(os.path.dirname(t_path), exist_ok=True)
                     img_crop.save(t_path)
+                '''
+
+                tasks.append({
+                    "np": img_np,
+                    "id": member_id
+                })
+
+        prediction_result = {}
+        for task in tqdm(tasks):
+            p = predict(task["np"])
+            prediction_result[task["id"]] = p
+
 
         curation = Converter.convertManifest2Curation(m_data)
 
