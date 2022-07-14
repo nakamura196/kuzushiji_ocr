@@ -21,8 +21,8 @@ class OcrTask:
           print("### タスクIDが重複するため、{}に変更します。 ###".format(task_id))
           self.task_id = task_id
         self.main_dir = "{}/{}".format(output_dir, task_id) # main_dir 
-        self.manifest_path = "{}/manifest.json".format(self.main_dir)
-        self.tmp_dir = "tmp/{}".format(task_id)
+        self.manifest_path = "{}/manifest_01_detection.json".format(self.main_dir)
+        self.tmp_dir = "/tmp/{}".format(task_id)
 
     def kuzushijiOcrByManifest(self):
         print("### 文字領域検出を開始します。 ###")
@@ -34,5 +34,5 @@ class OcrTask:
 
     def text(self):
         print("### 行検出を開始します。 ###")
-        curation_path = "{}/character.json".format(self.main_dir)
+        curation_path = "{}/curation_02_character.json".format(self.main_dir)
         Text.exec(self.main_dir, curation_path, self.tmp_dir)

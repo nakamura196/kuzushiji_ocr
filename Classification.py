@@ -72,13 +72,6 @@ class Classification:
             shutil.rmtree(o_dir)
 
         anno_index = 0
-        
-        
-
-        
-
-        # start = 0 if start < 1 else start - 1
-        # end = len(canvases) if end == -1 else end - 1
 
         # 注意。アノテーション付きのマニフェスト。
         with open(manifest_path, 'r') as f:
@@ -109,9 +102,6 @@ class Classification:
             else:
                 continue
 
-            # index = str(i + 1).zfill(4)
-            # print(i)
-
             canvas = canvases[i]
             canvas_id = canvas["@id"]
 
@@ -119,9 +109,6 @@ class Classification:
                 continue
 
             item = itemMap[canvas_id]
-
-            # for i in tqdm(range(len(items))):
-            # item = items[i]
             
             page = str(i + 1).zfill(4)
 
@@ -197,7 +184,7 @@ class Classification:
                     "text" : label["marker"]
                 }
 
-        opath = "{}/character.json".format(output_dir)
+        opath = "{}/curation_02_character.json".format(output_dir)
         os.makedirs(os.path.dirname(opath), exist_ok=True)
 
         with open(opath, 'w') as outfile:

@@ -249,7 +249,7 @@ class Text:
             # idsに基づき、membersを更新する
             updateMembers(members, indexes, ids_best)
 
-        opath = "{}/text.json".format(output_dir)
+        opath = "{}/curation_03_text.json".format(output_dir)
         os.makedirs(os.path.dirname(opath), exist_ok=True)
 
         with open(opath, 'w') as outfile:
@@ -267,7 +267,7 @@ class Text:
         soup = BeautifulSoup(xml_all,'xml')
         OCRDATASET = soup.find("OCRDATASET")
 
-        mpath = "{}/manifest.json".format(output_dir)
+        mpath = "{}/manifest_01_detection.json".format(output_dir)
         with open(mpath, 'r') as f:
             manifest3_org = json.load(f)
 
@@ -365,7 +365,7 @@ class Text:
             file.write(html)
 
         # manifest
-        opath = "{}/line.json".format(output_dir)
+        opath = "{}/manifest_03_text.json".format(output_dir)
         os.makedirs(os.path.dirname(opath), exist_ok=True)
 
         with open(opath, 'w') as outfile:

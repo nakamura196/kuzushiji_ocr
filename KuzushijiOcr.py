@@ -14,31 +14,31 @@ from Common import Common
 class TaskImage:
     yolo_defined_image_size = 1024
 
-    def __init__(self, url, path, canvas_index, canvas_id, service=None):
+    def __init__(self, url, path, canvas_index, canvas_id, canvas_width, canvas_height, service=None):
         self.url = url
         self.canvas_index = canvas_index
         self.canvas_id = canvas_id
         self.path = path
         self.service = service
+        self.canvas_width = canvas_width
+        self.canvas_height = canvas_height
 
     def detect(self, model_yolo, thres=0.0):
         self.img = Image.open(self.path)
         self.getResizedImg()
 
         results = model_yolo(self.resized_img, size=self.yolo_input_image_size)
-
-        # pprint.pprint(results)
         
         data = results.pandas().xyxy[0].to_json(orient="records")
         data = json.loads(data)
 
-        ratio = 1 / self.ratio
+        canvas_height = self.canvas_height
+        canvas_width = self.canvas_width
+
+        ll_canvas = max(canvas_height, canvas_width)
+        ratio = ll_canvas / self.yolo_defined_image_size
 
         items = []
-
-        height = self.h
-        width = self.w
-
         canvas = self.canvas_id
         url = self.url
 
@@ -47,15 +47,12 @@ class TaskImage:
 
             result =data[i]
 
-            # pprint.pprint(result)
-
             x = int(result["xmin"] * ratio)
             y = int(result["ymin"] * ratio)
             w = int(result["xmax"] * ratio) - x
             h = int(result["ymax"] * ratio) - y
 
             xywh = "{},{},{},{}".format(x, y, w, h)
-            # print(xywh)
             score = result["confidence"]
 
             if score < thres:
@@ -74,10 +71,10 @@ class TaskImage:
 
         body = {
             "format": "image/jpeg",
-            "height": height,
+            "height": canvas_height,
             "id": "{}".format(url),
             "type": "Image",
-            "width": width
+            "width": canvas_width
         }
 
         if self.service:
@@ -97,7 +94,7 @@ class TaskImage:
                     "type": "AnnotationPage"
                 }
             ],
-            "height": height,
+            "height": canvas_height,
             "id": "{}".format(canvas),
             "items": [
                 {
@@ -116,25 +113,22 @@ class TaskImage:
             ],
             "label" : "[{}]".format(self.canvas_index),
             "type": "Canvas",
-            "width": width
+            "width": canvas_width
         }
 
     def getResizedImg(self):
         img = self.img
-        w, h = img.size
-        long_line = max(w, h)
-        yolo_input_image_size = min(self.yolo_defined_image_size, long_line)
+        img_w, img_h = img.size
+        ll_img = max(img_w, img_h)
+        
+        yolo_input_image_size = min(self.yolo_defined_image_size, ll_img)
 
-        ratio = 1
-        if long_line > yolo_input_image_size:
-            ratio = yolo_input_image_size / long_line
-            resized_img = img.resize((int(w * ratio), int(h * ratio)))
+        ratio4img = 1
+        if ll_img > yolo_input_image_size:
+            ratio4img = yolo_input_image_size / ll_img
+            resized_img = img.resize((int(img_w * ratio4img), int(img_h * ratio4img)))
 
-        self.w = w
-        self.h = h
-        self.long_line = long_line
         self.yolo_input_image_size = yolo_input_image_size
-        self.ratio = ratio
         self.resized_img = resized_img
 
 class KuzushijiOcr:
@@ -155,7 +149,7 @@ class KuzushijiOcr:
             "type": "Manifest"
         }
 
-        opath = "{}/manifest.json".format(output_dir)
+        opath = "{}/manifest_01_detection.json".format(output_dir)
         os.makedirs(os.path.dirname(opath), exist_ok=True)
 
         with open(opath, 'w') as outfile:
@@ -214,6 +208,7 @@ class KuzushijiOcr:
             index = str(i + 1).zfill(4)
 
             canvas = canvases[i]
+
             canvas_id = canvas["@id"]
 
             url_img = canvas["images"][0]["resource"]["service"]["@id"] + "/full/full/0/default.jpg"
@@ -228,49 +223,23 @@ class KuzushijiOcr:
             if "service" in canvas["images"][0]["resource"]:
                 service = canvas["images"][0]["resource"]["service"]["@id"]
 
-            task = TaskImage(url_img, path, int(index), canvas_id, service)
+            canvas_width = canvas["width"]
+            canvas_height = canvas["height"]
+
+            task = TaskImage(url_img, path, int(index), canvas_id, canvas_width, canvas_height, service)
             item = task.detect(model_yolo, thres=thres)
             items.append(item)
 
         label = manifest["label"]
         manifest_uri = manifest["@id"]
 
-        # m_data = KuzushijiOcr.createManifest(manifest_uri, items, label, output_dir, hs)
         m_data = KuzushijiOcr.createManifest(manifest_uri, items, label, output_dir)
         
         # キュレーションへの変換
         curation = Converter.convertManifest2Curation(m_data)
 
-        '''
-        opath = "{}/{}/detection.json".format(output_dir, hs)
-        '''
-        opath = "{}/curation.json".format(output_dir)
+        opath = "{}/curation_01_detection.json".format(output_dir)
         os.makedirs(os.path.dirname(opath), exist_ok=True)
 
         with open(opath, 'w') as outfile:
             json.dump(curation, outfile)
-
-    @staticmethod
-    def test(url, output_dir, thres=0.0):
-
-        hs = hashlib.md5(url.encode()).hexdigest()
-
-        path = "/Users/nakamura/git/genji/kuzushiji_ocr/output/5361f893208b0c7f853ea1d0552a9e1a/manifest.json"
-        with open(path) as f:
-            m_data = json.load(f)
-
-        # キュレーションへの変換
-        curation = Converter.convertManifest2Curation(m_data)
-
-        opath = "{}/{}/detection.json".format(output_dir, hs)
-        os.makedirs(os.path.dirname(opath), exist_ok=True)
-
-        with open(opath, 'w') as outfile:
-            json.dump(curation, outfile)
-
-        import pprint
-        pprint.pprint(curation)
-
-
-
-
